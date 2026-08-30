@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ML Coding Practice</title>
+<link rel="stylesheet" href="/vendor/codemirror.min.css">
+<script src="/vendor/codemirror.min.js"></script>
+<script src="/vendor/python.min.js"></script>
+<script src="/vendor/matchbrackets.min.js"></script>
+<script src="/vendor/closebrackets.min.js"></script>
+<script src="/vendor/comment.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F4F6F8; --panel:#FFFFFF; --sunk:#E9EDF1; --ink:#12151A; --muted:#4C5661;
+  --faint:#87919C; --accent:#33409E; --accent-soft:#33409E14; --accent-line:#33409E38;
+  --ok:#1B6B4C; --ok-soft:#1B6B4C14; --bad:#9A3324; --bad-soft:#9A332412;
+  --warn:#8A5A1B; --hair:#D7DDE4; --rule:#B7C0CA; --code:#F0F3F6;
+  --sans:system-ui,-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --serif:"Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0C0F13; --panel:#141922; --sunk:#0F141B; --ink:#E5E9EE; --muted:#98A3B0;
+  --faint:#6A7583; --accent:#8E9CF5; --accent-soft:#8E9CF518; --accent-line:#8E9CF540;
+  --ok:#4FD3A0; --ok-soft:#4FD3A016; --bad:#E08A78; --bad-soft:#E08A7816;
+  --warn:#C89432; --hair:#222933; --rule:#323B47; --code:#0F141B;
+}}
+:root[data-theme="dark"]{
+  --paper:#0C0F13; --panel:#141922; --sunk:#0F141B; --ink:#E5E9EE; --muted:#98A3B0;
+  --faint:#6A7583; --accent:#8E9CF5; --accent-soft:#8E9CF518; --accent-line:#8E9CF540;
+  --ok:#4FD3A0; --ok-soft:#4FD3A016; --bad:#E08A78; --bad-soft:#E08A7816;
+  --warn:#C89432; --hair:#222933; --rule:#323B47; --code:#0F141B;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;overflow:hidden}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:1rem;padding:.55rem 1rem;
+  background:var(--panel);border-bottom:1px solid var(--rule);flex:none}
+.brand{font-family:var(--serif);font-weight:600;font-size:1.05rem;letter-spacing:-.01em}
+.brand span{color:var(--faint);font-family:var(--mono);font-size:.62rem;
+  letter-spacing:.14em;text-transform:uppercase;margin-left:.5rem}
+.spacer{margin-left:auto}
+.seg{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+.seg button{font-family:var(--mono);font-size:.72rem;padding:.3rem .7rem;border:0;
+  background:transparent;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.tally{font-family:var(--mono);font-size:.72rem;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.ghost{font-family:var(--mono);font-size:.7rem;color:var(--muted);background:transparent;
+  border:1px solid var(--rule);border-radius:3px;padding:.3rem .6rem;cursor:pointer}
+.ghost:hover{color:var(--ink);border-color:var(--faint)}
+
+/* ---------- layout ---------- */
+.cols{flex:1;display:grid;grid-template-columns:16rem minmax(0,1fr) minmax(0,1.05fr);
+  min-height:0}
+@media (max-width:1100px){.cols{grid-template-columns:14rem minmax(0,1fr);}
+  .pane-run{grid-column:1 / -1;border-top:1px solid var(--rule)}}
+.col{min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.pane-list{border-right:1px solid var(--rule);background:var(--panel)}
+/* block, not flex: in a flex column, children with overflow-x:auto (the shape
+   box, table wrappers) lose their automatic min-height and get crushed to a
+   sliver whenever the content is taller than the viewport */
+.pane-desc{border-right:1px solid var(--rule);padding:1.1rem 1.3rem 3rem;
+  display:block}
+.pane-run{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* ---------- problem list ---------- */
+.sect{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--faint);font-weight:700;
+  padding:1.6rem .85rem .1rem;border-top:2px solid var(--rule);margin-top:1rem}
+.vol{font-family:var(--serif);font-size:.86rem;font-weight:600;color:var(--ink);
+  padding:1.3rem .85rem .1rem;border-top:1px solid var(--rule);margin-top:.5rem;
+  display:flex;gap:.5rem;align-items:baseline;line-height:1.25}
+.vol:first-child{border-top:0;margin-top:0;padding-top:.9rem}
+.vol span{margin-left:auto;font-family:var(--mono);font-size:.62rem;color:var(--faint);
+  font-variant-numeric:tabular-nums;flex:none}
+.chap{font-family:var(--mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);font-weight:700;padding:.7rem .85rem .3rem}
+.item{display:flex;align-items:center;gap:.5rem;width:100%;text-align:left;
+  padding:.4rem .85rem;border:0;border-left:2px solid transparent;background:transparent;
+  color:var(--muted);cursor:pointer;font-size:.82rem;font-family:var(--sans)}
+.item:hover{background:var(--accent-soft);color:var(--ink)}
+.item[aria-current="true"]{background:var(--accent-soft);border-left-color:var(--accent);
+  color:var(--ink);font-weight:600}
+.item .tick{width:.9rem;flex:none;color:var(--ok);font-size:.8rem}
+.item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.diff{font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;
+  padding:.05rem .3rem;border-radius:2px;flex:none}
+.d1{color:var(--ok);background:var(--ok-soft)}
+.d2{color:var(--warn);background:#8A5A1B14}
+.d3{color:var(--bad);background:var(--bad-soft)}
+
+/* ---------- description ---------- */
+.pane-desc h1{font-family:var(--serif);font-size:1.4rem;margin:0 0 .2rem;font-weight:600;
+  letter-spacing:-.01em;text-wrap:balance}
+.crumb{font-family:var(--mono);font-size:.65rem;color:var(--faint);letter-spacing:.06em;
+  margin:0 0 .9rem}
+.pane-desc p{margin:.7rem 0;color:var(--ink)}
+.sig{font-family:var(--mono);font-size:.75rem;background:var(--code);border:1px solid var(--hair);
+  border-left:3px solid var(--accent-line);border-radius:2px;padding:.5rem .7rem;
+  margin:.9rem 0;overflow-x:auto;white-space:pre;color:var(--muted)}
+.lbl{font-family:var(--mono);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);font-weight:700;margin:1.4rem 0 .4rem}
+details{border:1px solid var(--hair);border-radius:3px;margin:.4rem 0;background:var(--panel)}
+details summary{cursor:pointer;padding:.4rem .7rem;font-size:.8rem;color:var(--accent);
+  font-weight:600;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▸ "}
+details[open] summary::before{content:"▾ "}
+details .in{padding:.1rem .8rem .6rem;border-top:1px solid var(--hair);font-size:.85rem;
+  color:var(--muted)}
+ul.traps{margin:.3rem 0;padding-left:1.1rem;font-size:.85rem;color:var(--muted)}
+ul.traps li{margin:.25rem 0}
+pre.sol{font-family:var(--mono);font-size:.75rem;background:var(--code);
+  border:1px solid var(--hair);border-radius:2px;padding:.6rem .8rem;overflow-x:auto;margin:.4rem 0}
+
+/* ---------- editor + results ---------- */
+.bar{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;
+  border-bottom:1px solid var(--hair);background:var(--panel);flex:none}
+.bar .nm{font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+.run{font-family:var(--sans);font-size:.78rem;font-weight:600;color:#fff;
+  background:var(--accent);border:0;border-radius:3px;padding:.35rem .9rem;cursor:pointer}
+.run:disabled{opacity:.5;cursor:progress}
+#editor{flex:1;min-height:12rem;display:flex;overflow:hidden}
+#editor textarea.fallback{flex:1;border:0;resize:none;padding:.7rem .9rem;
+  font-family:var(--mono);font-size:.79rem;line-height:1.55;tab-size:4;
+  background:var(--sunk);color:var(--ink);outline:none}
+#editor .CodeMirror{flex:1;height:auto;font-family:var(--mono);font-size:.8rem;
+  line-height:1.55;background:var(--sunk);color:var(--ink)}
+.CodeMirror-gutters{background:var(--sunk);border-right:1px solid var(--hair)}
+.CodeMirror-linenumber{color:var(--faint)}
+.CodeMirror-cursor{border-left:2px solid var(--ink)}
+.CodeMirror-selected{background:var(--accent-line) !important}
+.CodeMirror-focused .CodeMirror-selected{background:var(--accent-line) !important}
+.CodeMirror-matchingbracket{color:var(--accent) !important;font-weight:700;
+  background:var(--accent-soft)}
+.cm-s-default .cm-keyword{color:var(--accent);font-weight:600}
+.cm-s-default .cm-string{color:var(--ok)}
+.cm-s-default .cm-comment{color:var(--faint);font-style:italic}
+.cm-s-default .cm-number{color:var(--warn)}
+.cm-s-default .cm-builtin{color:var(--bad)}
+.cm-s-default .cm-def{color:var(--ink);font-weight:600}
+.cm-s-default .cm-operator{color:var(--muted)}
+.cm-s-default .cm-variable, .cm-s-default .cm-property{color:var(--ink)}
+.cm-s-default .cm-meta{color:var(--muted)}
+.results{flex:none;max-height:46%;overflow-y:auto;border-top:1px solid var(--rule);
+  background:var(--panel);padding:.6rem .8rem 1rem}
+.verdict{font-family:var(--mono);font-size:.8rem;font-weight:700;letter-spacing:.06em;
+  padding:.35rem .6rem;border-radius:3px;margin-bottom:.5rem;display:inline-block}
+.v-ok{color:var(--ok);background:var(--ok-soft)}
+.v-bad{color:var(--bad);background:var(--bad-soft)}
+.v-run{color:var(--muted);background:var(--sunk)}
+.case{display:flex;gap:.5rem;align-items:baseline;font-size:.79rem;padding:.16rem 0;
+  border-bottom:1px solid var(--hair)}
+.case .m{font-family:var(--mono);flex:none;width:1.1rem}
+.case.pass .m{color:var(--ok)} .case.fail .m{color:var(--bad)}
+.case .why{font-family:var(--mono);font-size:.68rem;color:var(--bad);margin-left:auto;
+  text-align:right;max-width:52%;overflow-wrap:anywhere}
+.case{flex-wrap:wrap}
+.detail{flex-basis:100%;margin:.2rem 0 .35rem 1.6rem;display:grid;
+  grid-template-columns:auto minmax(0,1fr);gap:.05rem .5rem;font-family:var(--mono);
+  font-size:.69rem}
+.detail dt{color:var(--faint);text-transform:uppercase;letter-spacing:.08em;
+  font-size:.6rem;padding-top:.12rem}
+.detail dd{margin:0;overflow-x:auto;white-space:pre;color:var(--muted)}
+.detail dd.want{color:var(--ok)}
+.detail dd.got{color:var(--bad)}
+.ex{border:1px solid var(--hair);border-radius:3px;margin:.4rem 0;background:var(--panel);
+  padding:.5rem .7rem}
+.ex .exn{font-size:.78rem;color:var(--ink);margin-bottom:.25rem}
+.ex dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.05rem .5rem;
+  margin:0;font-family:var(--mono);font-size:.7rem}
+.ex dt{color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-size:.58rem;
+  padding-top:.12rem}
+.ex dd{margin:0;overflow-x:auto;white-space:pre;color:var(--muted)}
+pre.out{font-family:var(--mono);font-size:.7rem;background:var(--sunk);border:1px solid var(--hair);
+  border-radius:2px;padding:.5rem .6rem;margin:.5rem 0 0;overflow-x:auto;
+  color:var(--muted);white-space:pre-wrap;max-height:12rem}
+.hintline{font-size:.8rem;color:var(--muted);margin:.3rem 0}
+.empty{color:var(--faint);font-size:.85rem;padding:2rem 1.3rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">ML Coding Practice <span id="bookchip"></span></div>
+  <div class="spacer"></div>
+  <div class="seg" id="fw">
+    <button type="button" data-fw="torch" aria-pressed="true">PyTorch</button>
+    <button type="button" data-fw="numpy" aria-pressed="false">NumPy</button>
+  </div>
+  <span class="tally" id="tally">–</span>
+  <button class="ghost" id="theme" type="button">theme</button>
+  <button class="ghost" id="reset" type="button">reset</button>
+</header>
+
+<div class="cols">
+  <nav class="col pane-list" id="list" aria-label="Problems"></nav>
+  <section class="col pane-desc" id="desc">
+    <p class="empty">Pick a problem from the list.</p>
+  </section>
+  <section class="pane-run">
+    <div class="bar">
+      <span class="nm" id="entryname">—</span>
+      <div class="spacer"></div>
+      <button class="ghost" id="restub" type="button">reset code</button>
+      <button class="run" id="runbtn" type="button" disabled>Run&nbsp;tests</button>
+    </div>
+    <div id="editor"></div>
+    <div class="results" id="results"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var TASKS = [], CHAPTERS = [], BOOKS = [], TITLES = {}, PROJECTS = [], PROGRESS = {}, EXAMPLES = {},
+      current = null, framework = "torch";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  };
+  var draftKey = function (id, fw) { return "draft:" + id + ":" + fw; };
+
+  // ---------------------------------------------------------------- loading
+  fetch("/api/tasks").then(function (r) { return r.json(); }).then(function (d) {
+    TASKS = d.tasks; CHAPTERS = d.chapters; PROGRESS = d.progress || {};
+    BOOKS = d.books || []; TITLES = d.book_titles || {};
+    PROJECTS = d.projects || [];
+    EXAMPLES = d.examples || {};
+    renderList(); renderTally();
+    var want = location.hash.slice(1);
+    select(TASKS.some(function (t) { return t.id === want; }) ? want : TASKS[0].id);
+  });
+
+  function renderTally() {
+    var solved = TASKS.filter(function (t) {
+      return PROGRESS[t.id] && PROGRESS[t.id].solved;
+    }).length;
+    $("tally").textContent = solved + " / " + TASKS.length + " solved overall";
+  }
+
+  function renderList() {
+    var html = "";
+    var drills = BOOKS.filter(function (b) { return PROJECTS.indexOf(b) === -1; });
+    var projects = BOOKS.filter(function (b) { return PROJECTS.indexOf(b) !== -1; });
+    drills.concat(projects).forEach(function (bk, order) {
+      if (projects.length && bk === projects[0]) {
+        html += '<div class="sect">Projects</div>';
+      }
+      var inBook = TASKS.filter(function (t) { return t.book === bk; });
+      var done = inBook.filter(function (t) {
+        return PROGRESS[t.id] && PROGRESS[t.id].solved; }).length;
+      html += '<div class="vol">' + esc(TITLES[bk] || bk) +
+              '<span>' + done + "/" + inBook.length + "</span></div>";
+      var bookChs = CHAPTERS.filter(function (c) { return c[0] === bk; });
+      bookChs.forEach(function (c) {
+      var ch = c[1];
+      if (bookChs.length > 1) html += '<div class="chap">' + esc(ch) + "</div>";
+      inBook.filter(function (t) { return t.chapter === ch; }).forEach(function (t) {
+        var p = PROGRESS[t.id] || {};
+        html += '<button class="item" data-id="' + t.id + '"' +
+          (current === t.id ? ' aria-current="true"' : "") + ">" +
+          '<span class="tick">' + (p.solved ? "✓" : "") + "</span>" +
+          '<span class="nm">' + esc(t.title) + "</span>" +
+          '<span class="diff d' + t.level + '">' + t.difficulty + "</span></button>";
+      });
+      });
+    });
+    $("list").innerHTML = html;
+    Array.prototype.forEach.call($("list").querySelectorAll(".item"), function (b) {
+      b.addEventListener("click", function () { select(b.dataset.id); });
+    });
+  }
+
+  // ---------------------------------------------------------------- selection
+  function select(id) {
+    current = id;
+    location.hash = id;
+    var t = TASKS.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+
+    // a task may not accept every backend
+    Array.prototype.forEach.call($("fw").querySelectorAll("button"), function (b) {
+      var okFw = t.frameworks.indexOf(b.dataset.fw) !== -1;
+      b.disabled = !okFw;
+      b.title = okFw ? "" : t.title + " has no " + b.dataset.fw + " reference yet";
+    });
+    if (t.frameworks.indexOf(framework) === -1) setFramework(t.frameworks[0], true);
+
+    $("bookchip").textContent = TITLES[t.book] || t.book;
+    renderList();
+    renderDesc(t);
+    loadCode(t);
+    $("entryname").textContent = "def " + t.entry + "(…)";
+    $("runbtn").disabled = false;
+    $("results").innerHTML = "";
+  }
+
+  function renderDesc(t) {
+    var h = "";
+    h += "<h1>" + esc(t.title) + "</h1>";
+    h += '<p class="crumb">' + esc(t.section) + " · " + t.difficulty +
+         " · " + t.n_checks + " tests · " + t.frameworks.join(" / ") + "</p>";
+    h += "<p>" + esc(t.statement) + "</p>";
+    h += '<div class="sig">' + esc(t.shapes) + "</div>";
+
+    var ex = EXAMPLES[t.id] || [];
+    if (ex.length) {
+      h += '<div class="lbl">Examples</div>';
+      ex.forEach(function (e, i) {
+        h += '<div class="ex"><div class="exn">Example ' + (i + 1) + " — " +
+             esc(e.name) + "</div><dl>" +
+             "<dt>input</dt><dd>" + esc(e.given) + "</dd>" +
+             "<dt>output</dt><dd>" + esc(e.got) + "</dd></dl></div>";
+      });
+    }
+
+    h += '<div class="lbl">Hints</div>';
+    t.hints.forEach(function (hint, i) {
+      h += "<details><summary>Hint " + (i + 1) + "</summary><div class='in'>" +
+           esc(hint) + "</div></details>";
+    });
+
+    h += '<div class="lbl">What this is testing</div>';
+    h += '<ul class="traps">';
+    t.traps.forEach(function (x) { h += "<li>" + esc(x) + "</li>"; });
+    h += "</ul>";
+
+    h += '<div class="lbl">Reference solution</div>';
+    h += "<details id='soldet'><summary>Reveal solution</summary>" +
+         "<div class='in' id='solbody'>loading…</div></details>";
+
+    $("desc").innerHTML = h;
+    $("desc").scrollTop = 0;
+    $("soldet").addEventListener("toggle", function () {
+      if (this.open && !this.dataset.loaded) {
+        this.dataset.loaded = "1";
+        fetch("/api/solution/" + t.id).then(function (r) { return r.json(); })
+          .then(function (sol) {
+            var body = "";
+            Object.keys(sol).forEach(function (fw) {
+              body += '<div class="lbl" style="margin-top:.6rem">' + fw + "</div>" +
+                      '<pre class="sol">' + esc(sol[fw]) + "</pre>";
+            });
+            $("solbody").innerHTML = body;
+          });
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- editor
+  // A thin adapter: CodeMirror when the vendored files load, a plain textarea
+  // otherwise, so the app still works if vendor/ goes missing.
+  var ed = (function () {
+    var host = $("editor");
+    var saveTimer = null;
+    function onChanged(v) {
+      if (!current) return;
+      var key = draftKey(current, framework);
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { localStorage.setItem(key, v); }, 300);
+    }
+    if (window.CodeMirror) {
+      var cm = CodeMirror(host, {
+        mode: "python",
+        lineNumbers: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        viewportMargin: Infinity,
+        extraKeys: {
+          "Tab": function (c) {
+            if (c.somethingSelected()) c.indentSelection("add");
+            else c.replaceSelection("    ", "end");
+          },
+          "Shift-Tab": function (c) { c.indentSelection("subtract"); },
+          "Cmd-Enter": function () { run(); },
+          "Ctrl-Enter": function () { run(); },
+          "Cmd-/": "toggleComment",
+          "Ctrl-/": "toggleComment"
+        }
+      });
+      cm.on("change", function () { onChanged(cm.getValue()); });
+      return {
+        cm: cm,
+        value: function () { return cm.getValue(); },
+        setValue: function (v) { cm.setValue(v); cm.clearHistory(); },
+        focus: function () { cm.focus(); }
+      };
+    }
+    var ta = document.createElement("textarea");
+    ta.className = "fallback";
+    ta.spellcheck = false;
+    host.appendChild(ta);
+    ta.addEventListener("input", function () { onChanged(ta.value); });
+    ta.addEventListener("keydown", function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); run(); }
+    });
+    return {
+      cm: null,
+      value: function () { return ta.value; },
+      setValue: function (v) { ta.value = v; },
+      focus: function () { ta.focus(); }
+    };
+  })();
+  window.ED = ed;                      // exposed for the editor smoke tests
+
+  function loadCode(t) {
+    var saved = localStorage.getItem(draftKey(t.id, framework));
+    ed.setValue(saved !== null ? saved : starter(t));
+  }
+
+  function starter(t) {
+    var imp = framework === "numpy"
+      ? "import numpy as np\nimport math\n\n"
+      : "import torch\nimport torch.nn.functional as F\nimport math\n\n";
+    return imp + t.stub;
+  }
+  $("restub").addEventListener("click", function () {
+    var t = TASKS.filter(function (x) { return x.id === current; })[0];
+    if (!t) return;
+    localStorage.removeItem(draftKey(t.id, framework));
+    ed.setValue(starter(t));
+  });
+
+  // ---------------------------------------------------------------- run
+  function run() {
+    if (!current) return;
+    $("runbtn").disabled = true;
+    $("results").innerHTML = '<span class="verdict v-run">running…</span>';
+    fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task: current, code: ed.value(), framework: framework })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      $("runbtn").disabled = false;
+      if (res.progress) { PROGRESS = res.progress; renderList(); renderTally(); }
+      renderResults(res);
+    }).catch(function (err) {
+      $("runbtn").disabled = false;
+      $("results").innerHTML = '<span class="verdict v-bad">server error</span>' +
+        '<pre class="out">' + esc(err) + "</pre>";
+    });
+  }
+  $("runbtn").addEventListener("click", run);
+
+  function renderResults(res) {
+    var h = "";
+    if (res.error) {
+      h += '<span class="verdict v-bad">Error</span>';
+      h += '<pre class="out">' + esc(res.error) + "</pre>";
+      if (res.stderr) h += '<pre class="out">' + esc(res.stderr) + "</pre>";
+      $("results").innerHTML = h;
+      return;
+    }
+    h += res.accepted
+      ? '<span class="verdict v-ok">Accepted &nbsp;' + res.passed + "/" + res.total + "</span>"
+      : '<span class="verdict v-bad">Wrong Answer &nbsp;' + res.passed + "/" + res.total + "</span>";
+    res.checks.forEach(function (c) {
+      h += '<div class="case ' + (c.ok ? "pass" : "fail") + '">' +
+        '<span class="m">' + (c.ok ? "✓" : "✕") + "</span>" +
+        "<span>" + esc(c.name) + "</span>" +
+        (c.error ? '<span class="why">' + esc(c.error) + "</span>" : "");
+      if (!c.ok && (c.given || c.want || c.got)) {
+        h += '<dl class="detail">';
+        if (c.given) h += "<dt>input</dt><dd>" + esc(c.given) + "</dd>";
+        if (c.ret) h += "<dt>returned</dt><dd>" + esc(c.ret) + "</dd>";
+        if (c.want) h += '<dt>expected</dt><dd class="want">' + esc(c.want) + "</dd>";
+        if (c.got) h += '<dt>yours</dt><dd class="got">' + esc(c.got) + "</dd>";
+        h += "</dl>";
+      }
+      h += "</div>";
+    });
+    if (res.stdout) h += '<pre class="out">' + esc(res.stdout) + "</pre>";
+    if (res.stderr) h += '<pre class="out">' + esc(res.stderr) + "</pre>";
+    $("results").innerHTML = h;
+  }
+
+  // ---------------------------------------------------------------- chrome
+  function setFramework(fw, quiet) {
+    framework = fw;
+    Array.prototype.forEach.call($("fw").querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.fw === fw));
+    });
+    localStorage.setItem("framework", fw);
+    if (!quiet && current) {
+      var t = TASKS.filter(function (x) { return x.id === current; })[0];
+      loadCode(t);
+      $("results").innerHTML = "";
+    }
+  }
+  Array.prototype.forEach.call($("fw").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () { setFramework(b.dataset.fw); });
+  });
+  var savedFw = localStorage.getItem("framework");
+  if (savedFw) setFramework(savedFw, true);
+
+  $("reset").addEventListener("click", function () {
+    if (!confirm("Clear solved marks for every problem? Your saved code is kept.")) return;
+    fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: "{}" }).then(function (r) { return r.json(); }).then(function (d) {
+      PROGRESS = d.progress; renderList(); renderTally();
+    });
+  });
+
+  var order = ["system", "light", "dark"];
+  var mode = localStorage.getItem("theme") || "system";
+  function paint() {
+    if (mode === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+    $("theme").textContent = "theme: " + mode;
+    localStorage.setItem("theme", mode);
+  }
+  $("theme").addEventListener("click", function () {
+    mode = order[(order.indexOf(mode) + 1) % order.length]; paint();
+  });
+  paint();
+})();
+</script>
+</body>
+</html>

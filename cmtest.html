@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body>
+<iframe id="f" src="/#stable-softmax" style="width:1400px;height:800px"></iframe>
+<pre id="out"></pre>
+<script>
+var log = [], pass = 0, fail = 0;
+function expect(name, got, want) {
+  var ok = JSON.stringify(got) === JSON.stringify(want);
+  ok ? pass++ : fail++;
+  log.push((ok ? "ok   " : "FAIL ") + name +
+    (ok ? "" : "  want=" + JSON.stringify(want) + " got=" + JSON.stringify(got)));
+}
+var f = document.getElementById("f");
+f.onload = function () {
+  setTimeout(function () {
+    var W = f.contentWindow, D = f.contentDocument;
+    var ED = W.ED;
+    expect("adapter exists", !!ED, true);
+    expect("CodeMirror engine active (not fallback)", !!ED.cm, true);
+    expect("gutter with line numbers rendered",
+           D.querySelectorAll(".CodeMirror-linenumber").length > 0, true);
+    expect("stub loaded into the editor",
+           ED.value().indexOf("def softmax") !== -1, true);
+    ED.setValue("x = 1");
+    ED.cm.replaceRange("\ny = 2", {line: 0, ch: 5});
+    expect("edit applied", ED.value(), "x = 1\ny = 2");
+    ED.cm.undo();
+    expect("undo restores (native history)", ED.value(), "x = 1");
+    ED.setValue("def f():");
+    ED.cm.setCursor({line: 0, ch: 8});
+    ED.cm.execCommand("newlineAndIndent");
+    expect("newline auto-indents after ':'", ED.value(), "def f():\n    ");
+    ED.setValue("a = 1\nb = 2");
+    ED.cm.setSelection({line: 0, ch: 0}, {line: 1, ch: 5});
+    ED.cm.toggleComment({indent: true});
+    expect("toggleComment comments the selection", ED.value(), "# a = 1\n# b = 2");
+    ED.cm.setSelection({line: 0, ch: 0}, {line: 1, ch: 7});
+    ED.cm.toggleComment({indent: true});
+    expect("toggleComment uncomments back", ED.value(), "a = 1\nb = 2");
+    ED.setValue("a\nb");
+    ED.cm.setSelection({line: 0, ch: 0}, {line: 1, ch: 1});
+    ED.cm.indentSelection("add");
+    expect("indentSelection adds a level", ED.value(), "    a\n    b");
+    ED.cm.indentSelection("subtract");
+    expect("dedent removes it", ED.value(), "a\nb");
+    expect("closebrackets addon is loaded",
+           ED.cm.getOption("autoCloseBrackets") !== false &&
+           typeof ED.cm.getOption("autoCloseBrackets") !== "undefined", true);
+    ED.setValue("import torch\ndef softmax(x, dim=-1):\n    m = x.max(dim, keepdim=True).values\n    e = torch.exp(x - m)\n    return e / e.sum(dim, keepdim=True)\n");
+    W.fetch("/api/run", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({task: "stable-softmax", code: ED.value(), framework: "torch"})})
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        expect("editor content runs and is Accepted", res.accepted === true, true);
+        finish();
+      }).catch(function (e) { expect("run round-trip", String(e), "ok"); finish(); });
+    function finish() {
+      document.getElementById("out").textContent =
+        log.join("\n") + "\n\n" + pass + " passed, " + fail + " failed";
+    }
+  }, 1200);
+};
+</script></body></html>
