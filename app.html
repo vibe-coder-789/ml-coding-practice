@@ -299,7 +299,7 @@ pre.out{font-family:var(--mono);font-size:.7rem;background:var(--sunk);border:1p
     renderList();
     renderDesc(t);
     loadCode(t);
-    $("entryname").textContent = "def " + t.entry + "(…)";
+    $("entryname").textContent = t.signature || ("def " + t.entry + "(…)");
     $("runbtn").disabled = false;
     $("results").innerHTML = "";
   }

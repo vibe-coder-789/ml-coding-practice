@@ -73,6 +73,39 @@ if _dupes:
     raise ValueError(f"duplicate task ids: {_dupes}")
 
 
+def _stub_with_contract(t):
+    """Inject the task's shape contract into its starter code as a docstring,
+    so the signature is complete inside the editor, not just in the side pane.
+    Generated from the `shapes` field — it cannot drift from the contract."""
+    stub = t["stub"]
+    shapes = t["shapes"]
+    ins, arrow, ret = shapes.rpartition("->")
+    if not arrow:
+        ins, ret = shapes, ""
+    parts = [p.strip() for p in ins.split("\u00b7") if p.strip()]
+    lines = stub.split("\n")
+    head = next((i for i, ln in enumerate(lines) if ln.rstrip().endswith(":")), None)
+    if head is None:
+        return stub
+    indent = " " * (len(lines[head]) - len(lines[head].lstrip()) + 4)
+    doc = [indent + '\"\"\"Shapes:']
+    for prt in parts:
+        doc.append(indent + "    " + prt)
+    if ret.strip():
+        doc.append(indent + "    returns: " + ret.strip())
+    doc.append(indent + '\"\"\"')
+    return "\n".join(lines[:head + 1] + doc + lines[head + 1:])
+
+
+def _signature(t):
+    """The stub's own def/class line, for the editor header."""
+    for ln in t["stub"].split("\n"):
+        ls = ln.strip()
+        if ls.startswith("def ") or ls.startswith("class "):
+            return ls.rstrip(":")
+    return "def " + t["entry"] + "(...)"
+
+
 def public(t):
     """The task as the browser sees it — no solution, no test source."""
     return {
@@ -86,7 +119,8 @@ def public(t):
         "entry": t["entry"],
         "statement": t["statement"],
         "shapes": t["shapes"],
-        "stub": t["stub"],
+        "stub": _stub_with_contract(t),
+        "signature": _signature(t),
         "hints": t["hints"],
         "traps": t["traps"],
         "frameworks": t["frameworks"],
